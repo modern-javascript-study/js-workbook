@@ -474,3 +474,125 @@ alert( arr instanceof Object ); // true
    // rabbit.__proto__.__proto__ === Animal.prototype (일치!)
    ```
 
+
+
+아래 그림은 `rabbit instanceof Animal`을 실행했을 때 `Animal.prototype`과 비교되는 대상들을 보여준다.
+
+![Screen Shot 2021-07-26 at 4 26 50 PM](https://user-images.githubusercontent.com/79819941/126949571-4aebacb0-1311-4c5b-b848-6c6ed3ddd7fa.png) 
+
+한편, `objA`가 `objB`의 프로토타입 체인 상 어딘가에 있으면 `true`를 반환해주는 메서드, [objA.isPrototypeOf(objB)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/object/isPrototypeOf)도 있다. `obj instanceof Class`는 `Class.prototype.isPrototypeOf(obj)`와 동일하다.
+
+`isPrototypeOf`는 `Class` 생성자를 제외하고 포함 여부를 검사하는 점이 조금 특이한데, 검사 시, 프로토타입 체인과 `Class.prototype`만 고려한다.
+
+`isPrototypeOf`의 이런 특징은 객체 생성 후 `prototype` 프로퍼티가 변경되는 경우 아래처럼 특이한 결과를 초래하기도 한다.
+
+예시:
+
+```javascript
+function Rabbit() {}
+let rabbit = new Rabbit();
+
+// 프로토타입이 변경됨
+Rabbit.prototype = {};
+
+// 더 이상 Rabbit이 아니다!
+alert( rabbit instanceof Rabbit ); // false
+```
+
+
+
+#### 보너스: 타입 확인을 위한 Object.prototype.toString
+
+일반 객체를 문자열로 변화하면 `[object Object]`가 된다는 것을 알고 있다.
+
+```javascript
+let obj = {};
+
+alert(obj); // [object Object]
+alert(obj.toString()); // 같은 결과가 출력됨
+```
+
+이렇게 `[object Object]`가 되는 이유는 `toString`의 구현방식 때문이다. 그런데 `toString`엔 `toString`을 더 강력하게 만들어주는 기능이 숨겨져 있습니다. `toString`의 숨겨진 기능을 사용하면 확장 `typeof`, `instanceof`의 대안을 만들 수 있다.
+
+[명세서](https://tc39.github.io/ecma262/#sec-object.prototype.tostring)에 따르면, 객체에서 내장 `toString`을 추출하는 게 가능합니다. 이렇게 추출한 메서드는 모든 값을 대상으로 실행할 수 있다. 호출 결과는 값에 따라 달라진다.
+
+- 숫자형 – `[object Number]`
+- 불린형 – `[object Boolean]`
+- `null` – `[object Null]`
+- `undefined` – `[object Undefined]`
+- 배열 – `[object Array]`
+- 그외 – 커스터마이징 가능
+
+예시:
+
+```javascript
+// 편의를 위해 toString 메서드를 변수에 복사함
+let objectToString = Object.prototype.toString;
+
+// 아래 변수의 타입은 무엇일까?
+let arr = [];
+
+alert( objectToString.call(arr) ); // [object Array]
+```
+
+[call/apply와 데코레이터, 포워딩](https://ko.javascript.info/call-apply-decorators) 챕터에서 설명한 [call](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/function/call)을 사용해 컨텍스트를 `this=arr`로 설정하고 함수 `objectToString`를 실행하였다.
+
+`toString` 알고리즘은 내부적으로 `this`를 검사하고 상응하는 결과를 반환한다.
+
+```javascript
+let s = Object.prototype.toString;
+
+alert( s.call(123) ); // [object Number]
+alert( s.call(null) ); // [object Null]
+alert( s.call(alert) ); // [object Function]
+```
+
+
+
+#### Symbol.toStringTag
+
+특수 객체 프로퍼티 `Symbol.toStringTag`를 사용하면 `toString`의 동작을 커스터마이징 할 수 있다.
+
+예시:
+
+```javascript
+let user = {
+  [Symbol.toStringTag]: "User"
+};
+
+alert( {}.toString.call(user) ); // [object User]
+```
+
+대부분의 호스트 환경은 자체 객체에 이와 유사한 프로퍼티를 구현해 놓고 있다. 브라우저 관련 예시 몇 가지를 살펴보자.
+
+```javascript
+// 특정 호스트 환경의 객체와 클래스에 구현된 toStringTag
+alert( window[Symbol.toStringTag]); // Window
+alert( XMLHttpRequest.prototype[Symbol.toStringTag] ); // XMLHttpRequest
+
+alert( {}.toString.call(window) ); // [object Window]
+alert( {}.toString.call(new XMLHttpRequest()) ); // [object XMLHttpRequest]
+```
+
+실행 결과에서 보듯이 호스트 환경 고유 객체의 `Symbol.toStringTag` 값은 `[object ...]`로 쌓여진 값과 동일하다.
+
+이처럼 ‘typeof’ 연산자의 강력한 변형들(`toString`과 `toStringTag` – 옮긴이)은 원시 자료형뿐만 아니라 내장 객체에도 사용할 수 있다. 그리고 커스터마이징까지 가능하다.
+
+내장 객체의 타입 확인을 넘어서 타입을 문자열 형태로 받고 싶다면 `instanceof` 대신, `{}.toString.call`을 사용할 수 있다.
+
+
+
+> #### 요약
+>
+> 지금까지 배운 타입 확인 메서드를 요약하면 다음과 같다.
+>
+> |               | 동작 대상                                           | 반환값       |
+> | :------------ | :-------------------------------------------------- | :----------- |
+> | `typeof`      | 원시형                                              | 문자열       |
+> | `{}.toString` | 원시형, 내장 객체, `Symbol.toStringTag`가 있는 객체 | 문자열       |
+> | `instanceof`  | 객체                                                | true나 false |
+>
+> 예시에서 보았듯이 `{}.toString`은 `typeof`보다 ‘기능이 더’ 많다.
+>
+> `instanceof` 연산자는 계층 구조를 가진 클래스를 다룰 때나 클래스의 상속 여부를 확인하고자 할 때 그 진가를 발휘한다.
+
