@@ -683,3 +683,104 @@ new User("Dude").sayHi(); // Hello Dude!
 
 이는 `sayHi`와 `sayBye`가 생성된 곳이 `sayHiMixin`이기 때문이다. 따라서 메서드를 복사했더라도, 이 메서드들의 내부 프로퍼티인 `[[HomeObject]]`는 위 그림처럼 `sayHiMixin`을 참조하게 된다. 메서드의 `super`가 `[[HomeObject]].[[Prototype]]`내에서 부모 메서드를 찾기 때문에, 메서드는 `User.[[Prototype]]`이 아닌 `sayHiMixin.[[Prototype]]`을 검색한다.
 
+
+
+## 이벤트 믹스인
+
+실제로 사용할 수 있는 믹스인을 만들어 보면,  상당수 브라우저 객체는 이벤트를 생성이라는 중요한 기능을 가지고 있다. 이벤트는 정보를 필요로 하는 곳에 ‘정보를 널리 알리는(broadcast)’ 훌륭한 수단인데, 아래 예시에선 클래스나 객체에 이벤트 관련 함수를 쉽게 추가할 수 있도록 해주는 믹스인을 만들어 보자.
+
+- 믹스인은 뭔가 중요한 일이 발생했을 때 ‘이벤트를 생성하는’ 메서드, `.trigger(name, [...data])`를 제공하며, 인수 `name`은 이벤트 이름이고, 뒤따르는 선택 인수는 이벤트 데이터 정보를 담는다.
+- 메서드 `.on(name, handler)`은 `name`에 해당하는 이벤트에 리스너로 `handler` 함수를 추가한다. `.on()`은 이벤트(`name`)가 트리거 될 때 호출되고, `.trigger` 호출에서 인수를 얻는다.
+- 메서드 `.off(name, handler)`는 `handler` 리스너를 제거한다.
+
+믹스인을 추가하면, 사용자가 로그인할 때 객체 `user`가 `"login"`이라는 이벤트를 생성할 수 있게 된다. 또 다른 객체 `calendar`는 `user`가 생성한 이벤트인 `"login"`을 듣고 사용자에 맞는 달력을 보여줄 수 있을 것이다.
+
+메뉴의 항목을 선택했을 때 객체 `menu`가 `"select"`라는 이벤트를 생성하고, 다른 객체는 `"select"`에 반응하는 이벤트 핸들러를 할당할 수도 있을 것이다. 이벤트 믹스인은 이런 용도로 활용 가능하다.
+
+이벤트 믹스인을 구현해보자.
+
+```javascript
+let eventMixin = {
+  /**
+   *  이벤트 구독
+   *  사용패턴: menu.on('select', function(item) { ... }
+  */
+  on(eventName, handler) {
+    if (!this._eventHandlers) this._eventHandlers = {};
+    if (!this._eventHandlers[eventName]) {
+      this._eventHandlers[eventName] = [];
+    }
+    this._eventHandlers[eventName].push(handler);
+  },
+
+  /**
+   *  구독 취소
+   *  사용패턴: menu.off('select', handler)
+   */
+  off(eventName, handler) {
+    let handlers = this._eventHandlers?.[eventName];
+    if (!handlers) return;
+    for (let i = 0; i < handlers.length; i++) {
+      if (handlers[i] === handler) {
+        handlers.splice(i--, 1);
+      }
+    }
+  },
+
+  /**
+   *  주어진 이름과 데이터를 기반으로 이벤트 생성
+   *  사용패턴: this.trigger('select', data1, data2);
+   */
+  trigger(eventName, ...args) {
+    if (!this._eventHandlers?.[eventName]) {
+      return; // no handlers for that event name
+    }
+
+    // 핸들러 호출
+    this._eventHandlers[eventName].forEach(handler => handler.apply(this, args));
+  }
+};
+```
+
+- `.on(eventName, handler)` – `eventName`에 해당하는 이벤트가 발생하면 실행시킬 함수 `handler`를 할당한다. 한 이벤트에 대응하는 핸들러가 여러 개 있을 때, 프로퍼티 `_eventHandlers`는 핸들러가 담긴 배열을 저장합니다. 여기선 핸들러가 배열에 추가만 된다.
+- `.off(eventName, handler)` – 핸들러 리스트에서 `handler`를 제거한다.
+- `.trigger(eventName, ...args)` – 이벤트를 생성한다. `_eventHandlers[eventName]`에 있는 모든 핸들러가 `...args`와 함께 호출된다.
+
+사용법:
+
+```javascript
+// 클래스 생성
+class Menu {
+  choose(value) {
+    this.trigger("select", value);
+  }
+}
+// 이벤트 관련 메서드가 구현된 믹스인 추가
+Object.assign(Menu.prototype, eventMixin);
+
+let menu = new Menu();
+
+// 메뉴 항목을 선택할 때 호출될 핸들러 추가
+menu.on("select", value => alert(`선택된 값: ${value}`));
+
+// 이벤트가 트리거 되면 핸들러가 실행되어 얼럿창이 뜸
+// 얼럿창 메시지: Value selected: 123
+menu.choose("123");
+```
+
+이제 `menu.on(...)`을 사용해 메뉴 선택이라는 정보를 들을 수 있게 되었고, 이에 반응하는 코드를 추가할 수 있게 되었다.
+
+그리고 믹스인 `eventMixin`을 사용하면 이런 동작을 상속 체이닝에 끼어들지 않고도 원하는 클래스에 모두에 추가할 수 있다.
+
+## 
+
+> #### 요약
+>
+> *믹스인* 은 객체 지향 언어에서 범용적으로 쓰이는 용어로, 다른 클래스들의 메서드 조합을 포함하는 클래스를 의미한다.
+>
+> 몇몇 언어는 다중상속을 허용한다. 자바스크립트는 다중상속을 지원하지 않는데, 믹스인을 사용하면 메서드를 복사해 프로토타입에 구현할 수 있다.
+>
+> 이벤트 믹스인 예시에서 본 것처럼, 믹스인은 이벤트 핸들링 등의 행동을 추가하여 클래스를 확장하는 용도로 사용할 수 있다.
+>
+> mixin이 실수로 기존 클래스 메서드를 덮어쓰면 충돌이 발생할 수 있다. 따라서 mixin을 만들 땐 충돌이 발생하지 않도록 메서드 이름을 신중하게 정해야 한다.
+
