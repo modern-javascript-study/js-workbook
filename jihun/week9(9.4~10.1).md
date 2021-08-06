@@ -902,3 +902,191 @@ setTimeout(function() {
 }, 1000);
 ```
 
+## 에러 객체
+
+에러가 발생하면 자바스크립트는 에러 상세내용이 담긴 객체를 생성합니다. 그 후, `catch` 블록에 이 객체를 인수로 전달한다.
+
+```javascript
+try {
+  // ...
+} catch(err) { // <-- '에러 객체', err 대신 다른 이름으로도 쓸 수 있음
+  // ...
+}
+```
+
+내장 에러 전체와 에러 객체는 두 가지 주요 프로퍼티를 가진다.
+
+- `name`
+
+  에러 이름. 정의되지 않은 변수 때문에 발생한 에러라면 `"ReferenceError"`가 이름이 된다.
+
+- `message`
+
+  에러 상세 내용을 담고 있는 문자 메시지
+
+표준은 아니지만, `name`과 `message` 이외에 대부분의 호스트 환경에서 지원하는 프로퍼티도 있다. `stack`은 가장 널리 사용되는 비표준 프로퍼티 중 하나이다.
+
+- `stack`
+
+  현재 호출 스택. 에러를 유발한 중첩 호출들의 순서 정보를 가진 문자열로 디버깅 목적으로 사용된다.
+
+예시:
+
+```javascript
+try {
+  lalala; // 에러, 변수가 정의되지 않음!
+} catch(err) {
+  alert(err.name); // ReferenceError
+  alert(err.message); // lalala is not defined
+  alert(err.stack); // ReferenceError: lalala is not defined at ... (호출 스택)
+
+  // 에러 전체를 보여줄 수도 있다.
+  // 이때, 에러 객체는 "name: message" 형태의 문자열로 변환된다.
+  alert(err); // ReferenceError: lalala is not defined
+}
+```
+
+## 선택적 ‘catch’ 바인딩
+
+**최근에 추가됨**
+
+스펙에 추가된 지 얼마 안 된 문법입니다. 구식 브라우저는 폴리필이 필요하다.
+
+에러에 대한 자세한 정보가 필요하지 않으면, `catch`에서 이를 생략할 수 있다.
+
+```javascript
+try {
+  // ...
+} catch { // <-- (err) 없이 쓸 수 있음
+  // ...
+}
+```
+
+## ‘try…catch’ 사용하기
+
+`try..catch`가 실무에서 어떻게 사용되는지 알아보자.
+
+앞서 JSON으로 인코딩된 값을 읽을 수 있도록 해주는 [JSON.parse(str)](https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) 메서드에 대해 배운 바 있다.
+
+이 메서드는 주로 서버 등에서 네트워크를 통해 전달받은 데이터를 디코딩하는 데 사용하며, 전달받은 데이터에 `JSON.parse`를 호출하는 식으로 사용된다.
+
+```javascript
+let json = '{"name":"John", "age": 30}'; // 서버로부터 전달받은 데이터
+
+let user = JSON.parse(json); // 전달받은 문자열을 자바스크립트 객체로 변환
+
+// 문자열 형태로 전달받은 user가 프로퍼티를 가진 객체가 됨
+alert( user.name ); // John
+alert( user.age );  // 30
+```
+
+JSON에 관한 자세한 정보는 [JSON과 메서드](https://ko.javascript.info/json) 챕터에서 읽어보자.
+
+**잘못된 형식의 `json`이 들어온 경우, `JSON.parse`는 에러를 만들기 때문에 스크립트가 ‘죽는다’.**
+
+서버에서 전달받은 데이터가 잘못되어 스크립트가 죽는 경우, 사용자는 개발자 콘솔을 열지 않는 이상 절대 원인을 알 수 없다. 그런데 사람들은 메시지 등을 통해 에러의 원인을 알지 못한 채 무언가가 '그냥 죽는 것’을 정말 싫어한다.
+
+`try..catch`를 사용해 이를 처리해 보자.
+
+```javascript
+let json = "{ bad json }";
+
+try {
+
+  let user = JSON.parse(json); // <-- 여기서 에러가 발생하므로
+  alert( user.name ); // 이 코드는 동작하지 않는다.
+
+} catch (e) {
+  // 에러가 발생하면 제어 흐름이 catch 문으로 넘어온다.
+  alert( "데이터에 에러가 있어 재요청을 시도합니다." );
+  alert( e.name );
+  alert( e.message );
+}
+```
+
+위 예시에선 에러가 발생했다는 걸 보여주기 위해 간단히 예외처리했지만, `catch` 블록 안에서 새로운 네트워크 요청 보내기, 사용자에게 대안 제안하기, 로깅 장치에 에러 정보 보내기 등과 같은 구체적인 일을 할 수 있습니다. 스크립트가 죽도록 놔두는 것보다 훨씬 나은 대응이다.
+
+## 직접 에러를 만들어서 던지기
+
+`json`이 문법적으로 잘못되진 않았지만, 스크립트 내에서 사용 중인 필수 프로퍼티 `name`을 가지고 있지 않다면 무슨 일이 생길까?
+
+```javascript
+let json = '{ "age": 30 }'; // 불완전한 데이터
+
+try {
+
+  let user = JSON.parse(json); // <-- 에러 없음
+  alert( user.name ); // 이름이 없다!
+
+} catch (e) {
+  alert( "실행되지 않습니다." );
+}
+```
+
+위 예시에서 `JSON.parse`는 정상적으로 실행되었지만 `name`이 없는 건 에러를 유발하는 상황이다.
+
+이제 `throw` 연산자를 사용해 에러 처리를 통합해보자.
+
+### ‘throw’ 연산자
+
+`throw` 연산자는 에러를 생성하며, 문법은 다음과 같다.
+
+```javascript
+throw <error object>
+```
+
+이론적으로는 숫자, 문자열 같은 원시형 자료를 포함한 어떤 것이든 에러 객체(error object)로 사용할 수 있다. 하지만 내장 에러와의 호환을 위해 되도록 에러 객체에 `name`과 `message` 프로퍼티를 넣어주는 것을 권장한다.
+
+자바스크립트는 `Error`, `SyntaxError`, `ReferenceError`, `TypeError`등의 표준 에러 객체 관련 생성자를 지원한다. 이 생성자들을 이용해 에러 객체를 만들 수도 있다.
+
+```javascript
+let error = new Error(message);
+// or
+let error = new SyntaxError(message);
+let error = new ReferenceError(message);
+// ...
+```
+
+일반 객체가 아닌 내장 생성자를 사용해 만든 내장 에러 객체의 `name` 프로퍼티는 생성자 이름과 동일한 값을 갖습니다. 프로퍼티 `message`의 값은 인수에서 가져온다.
+
+```javascript
+let error = new Error("이상한 일이 발생했습니다. o_O");
+
+alert(error.name); // Error
+alert(error.message); // 이상한 일이 발생했습니다. o_O
+```
+
+잘못된 데이터를 받았을 때, `JSON.parse`가 어떤 종류의 에러를 만들어내는지 아래 코드를 통해 살펴보자.
+
+```javascript
+try {
+  JSON.parse("{ 잘못된 형식의 json o_O }");
+} catch(e) {
+  alert(e.name); // SyntaxError
+  alert(e.message); // Unexpected token b in JSON at position 2
+}
+```
+
+`SyntaxError`가 발생한다. 사용자를 나타내는 객체에 `name` 프로퍼티는 반드시 있어야 하므로, 이제 `name`이 없으면 에러가 발생한 것으로 간주하고 예외 처리를  `throw` 연산자를 사용해 에러를 던져보자.
+
+```javascript
+let json = '{ "age": 30 }'; // 불완전한 데이터
+
+try {
+
+  let user = JSON.parse(json); // <-- 에러 없음
+
+  if (!user.name) {
+    throw new SyntaxError("불완전한 데이터: 이름 없음"); // (*)
+  }
+
+  alert( user.name );
+
+} catch(e) {
+  alert( "JSON Error: " + e.message ); // JSON Error: 불완전한 데이터: 이름 없음
+}
+```
+
+`(*)`로 표시한 줄에서 `throw` 연산자는 `message`를 이용해 `SyntaxError`를 생성한다. 에러 생성 방식은 자바스크립트가 자체적으로 에러를 생성하는 방식과 동일하다. 에러가 발생했으므로 `try`의 실행은 즉시 중단되고 제어 흐름이 `catch`로 넘어간 것을 얼럿 창을 통해 확인할 수 있다.
+
+이제 `JSON.parse`에서 에러가 발생한 경우를 포함해서 모든 에러를 `catch` 블록 안에서 처리할 수 있게 되었다.
