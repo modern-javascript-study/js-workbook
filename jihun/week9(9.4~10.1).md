@@ -1194,3 +1194,42 @@ try {
 ```
 
 `readData`는 `SyntaxError`만 처리할 수 있지만, 함수 바깥의 `try..catch`에서는 예상치 못한 에러도 처리할 수 있게 되었다.
+
+## try…catch…finally
+
+`try..catch`는 `finally`라는 코드 절을 하나 더 가질 수 있는데 `finally`안의 코드는 다음과 같은 상황에서 실행된다.
+
+- 에러가 없는 경우: `try` 실행이 끝난 후
+- 에러가 있는 경우: `catch` 실행이 끝난 후
+
+`finally`를 사용하면 `try..catch`를 다음과 같이 확장할 수 있다.
+
+```javascript
+try {
+   ... 코드를 실행 ...
+} catch(e) {
+   ... 에러 핸들링 ...
+} finally {
+   ... 항상 실행 ...
+}
+```
+
+아래 코드를 실행해보면
+
+```javascript
+try {
+  alert( 'try 블록 시작' );
+  if (confirm('에러를 만드시겠습니까?')) 이상한_코드();
+} catch (e) {
+  alert( 'catch' );
+} finally {
+  alert( 'finally' );
+}
+```
+
+위 코드는 두 가지 경로로 실행된다.
+
+1. "에러를 만드시겠습니까?"에 'OK’로 답한 경우: `try -> catch -> finally`
+2. 'No’로 답한 경우: `try -> finally`
+
+`finally` 절은 무언가를 실행하고, 실행 결과에 상관없이 실행을 완료하고 싶을 경우 사용된다.
