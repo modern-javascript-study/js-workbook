@@ -1090,3 +1090,107 @@ try {
 `(*)`로 표시한 줄에서 `throw` 연산자는 `message`를 이용해 `SyntaxError`를 생성한다. 에러 생성 방식은 자바스크립트가 자체적으로 에러를 생성하는 방식과 동일하다. 에러가 발생했으므로 `try`의 실행은 즉시 중단되고 제어 흐름이 `catch`로 넘어간 것을 얼럿 창을 통해 확인할 수 있다.
 
 이제 `JSON.parse`에서 에러가 발생한 경우를 포함해서 모든 에러를 `catch` 블록 안에서 처리할 수 있게 되었다.
+
+## 에러 다시 던지기
+
+위 예시에선 불완전한 데이터를 `try..catch`로 처리하였다. 그런데 *또 다른 예기치 않은 에러*가 `try {...}` 블록 안에서 발생 할 수도 있다. 정의되지 않은 변수 사용 등의 프로그래밍 에러가 발생할 가능성은 항상 있기 때문이다.
+
+예시:
+
+```javascript
+let json = '{ "age": 30 }'; // 불완전한 데이터
+
+try {
+  user = JSON.parse(json); // <-- user 앞에 let을 붙이는 걸 잊었다.
+
+  // ...
+} catch(err) {
+  alert("JSON Error: " + err); // JSON Error: ReferenceError: user is not defined
+  // (실제론 JSON Error가 아니다.)
+}
+```
+
+에러는 어떤 상황에서도 발생할 수 있다! 몇십 년간 몇백만 명이 사용한 오픈소스 유틸리티에서도 끔찍한 해킹으로 이어질 수 있는 엄청난 버그가 발견된다.
+
+위에선 '불완전한 데이터’를 다루려는 목적으로 `try..catch`를 썼는데 `catch`는 원래 `try` 블록에서 발생한 *모든* 에러를 잡으려는 목적으로 만들어졌다. 그런데 위 예시에서 `catch`는 예상치 못한 에러를 잡아내 주긴 했지만, 에러 종류와 관계없이 `"JSON Error"` 메시지를 보여준다. 이렇게 에러 종류와 관계없이 동일한 방식으로 에러를 처리하는 것은 디버깅을 어렵게 만들기 때문에 좋지 않다.
+
+이런 문제를 피하고자 ‘다시 던지기(rethrowing)’ 기술을 사용합니다. 규칙은 간단하다.
+
+**catch는 알고 있는 에러만 처리하고 나머지는 ‘다시 던져야’ 한다.**
+
+‘다시 던지기’ 기술을 더 자세히 살펴보면,
+
+1. catch가 모든 에러를 받는다.
+2. `catch(err) {...}` 블록 안에서 에러 객체 `err`를 분석한다.
+3. 에러 처리 방법을 알지 못하면 `throw err`를 한다.
+
+보통 에러 타입을 `instanceof` 명령어로 체크한다.
+
+```javascript
+try {
+  user = { /*...*/ };
+} catch(err) {
+  if (err instanceof ReferenceError) {
+    alert('ReferenceError'); //  정의되지 않은 변수에 접근하여 'ReferenceError' 발생
+  }
+}
+```
+
+`err.name` 프로퍼티로 에러 클래스 이름을 알 수도 있다. 기본형 에러는 모두 `err.name` 프로퍼티를 가진다. 또는 `err.constructor.name`를 사용할 수도 있다.
+
+에러를 다시 던져서 `catch` 블록에선 `SyntaxError`만 처리되도록 해보자.
+
+```javascript
+let json = '{ "age": 30 }'; // 불완전한 데이터
+try {
+
+  let user = JSON.parse(json);
+
+  if (!user.name) {
+    throw new SyntaxError("불완전한 데이터: 이름 없음");
+  }
+
+  blabla(); // 예상치 못한 에러
+
+  alert( user.name );
+
+} catch(e) {
+
+  if (e instanceof SyntaxError) {
+    alert( "JSON Error: " + e.message );
+  } else {
+    throw e; // 에러 다시 던지기 (*)
+  }
+
+}
+```
+
+`catch` 블록 안의 `(*)`로 표시한 줄에서 다시 던져진(rethrow) 에러는 `try..catch` ‘밖으로 던져진다’. 이때 바깥에 `try..catch`가 있다면 여기서 에러를 잡습니다. 아니라면 스크립트는 문제가 발생될 것이다.
+
+이렇게 하면 `catch` 블록에선 어떻게 다룰지 알고 있는 에러만 처리하고, 알 수 없는 에러는 ‘건너뛸 수’ 있다.
+
+이제 `try..catch`를 하나 더 만들어, 다시 던져진 예상치 못한 에러를 처리해 보면,
+
+```javascript
+function readData() {
+  let json = '{ "age": 30 }';
+
+  try {
+    // ...
+    blabla(); // 에러!
+  } catch (e) {
+    // ...
+    if (!(e instanceof SyntaxError)) {
+      throw e; // 알 수 없는 에러 다시 던지기
+    }
+  }
+}
+
+try {
+  readData();
+} catch (e) {
+  alert( "External catch got: " + e ); // 에러를 잡음
+}
+```
+
+`readData`는 `SyntaxError`만 처리할 수 있지만, 함수 바깥의 `try..catch`에서는 예상치 못한 에러도 처리할 수 있게 되었다.
