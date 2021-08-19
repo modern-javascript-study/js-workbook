@@ -124,3 +124,44 @@ loadScript('/my/script.js', function(script) {
 ```
 
 위와 같이 모든 새로운 동작이 콜백 안에 위치하게 작성하면 된다. 그런데 이렇게 콜백 안에 콜백을 넣는 것은 수행하려는 동작이 단 몇 개뿐이라면 괜찮지만, 동작이 많은 경우엔 좋지 않다. 다른 방식으로 코드를 작성하는 방법은 곧 알아보도록 한다.
+
+#### 에러 핸들링
+
+지금까지 살펴본 예시들은 스크립트 로딩이 실패하는 경우 등의 에러를 고려하지 않고 작성되었다. 그런데 스크립트 로딩이 실패할 가능성은 언제나 있지만 물론 콜백 함수는 이런 에러를 핸들링할 수 있어야 한다.
+
+`loadScript`에서 로딩 에러를 추적할 수 있게 기능을 개선해보면,
+
+```javascript
+function loadScript(src, callback) {
+  let script = document.createElement('script');
+  script.src = src;
+
+  script.onload = () => callback(null, script);
+  script.onerror = () => callback(new Error(`${src}를 불러오는 도중에 에러가 발생했습니다.`));
+
+  document.head.append(script);
+}
+```
+
+이제 `loadScript`는 스크립트 로딩에 성공하면 `callback(null, script)`을, 실패하면 `callback(error)`을 호출한다.
+
+개선된 `loadScript`의 사용법은 다음과 같다.
+
+```javascript
+loadScript('/my/script.js', function(error, script) {
+  if (error) {
+    // 에러 처리
+  } else {
+    // 스크립트 로딩이 성공적으로 끝남
+  }
+});
+```
+
+이렇게 에러를 처리하는 방식은 흔히 사용되는 패턴이다. 이런 패턴은 '오류 우선 콜백(error-first callback)'이라고 불린다.
+
+오류 우선 콜백은 다음 관례를 따른다.
+
+1. `callback`의 첫 번째 인수는 에러를 위해 남겨둔다. 에러가 발생하면 이 인수를 이용해 `callback(err)`이 호출된다.
+2. 두 번째 인수(필요하면 인수를 더 추가할 수 있음)는 에러가 발생하지 않았을 때를 위해 남겨둔다. 원하는 동작이 성공한 경우엔 `callback(null, result1, result2...)`이 호출된다.
+
+오류 우선 콜백 스타일을 사용하면, 단일 `콜백` 함수에서 에러 케이스와 성공 케이스 모두를 처리할 수 있다.
